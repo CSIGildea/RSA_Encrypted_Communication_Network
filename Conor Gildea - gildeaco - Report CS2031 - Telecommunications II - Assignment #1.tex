@@ -1,0 +1,214 @@
+\documentclass[10pt]{article}
+\usepackage[left=12mm,top=0.5in,bottom=0.1in]{geometry}
+\usepackage{graphicx}
+%opening
+\title{\bf CS2031 - Telecommunications II - Assignment \#1}
+\author{Conor Gildea - gildeaco\\ gildeaco@tcd.ie - github.com/csigildea}
+\begin{document}
+\maketitle
+
+\section{Assignment \#1 - Finished Product and Milestones}
+		\begin{figure}[h!]
+		\includegraphics[width=\linewidth]{niceRSAencryption.png}
+		\caption{Multiple Clients communicating via RSA encrypted messages via the Gateway.}
+		\label{fig:boat1}
+	\end{figure}
+	\textbf{\underline{Milestones I achieved in this Assignment:}} 
+		\begin{description}
+		\item[$\bullet$] Creating a packet from client to server
+		\item[$\bullet$] Encapsulating the packet to the server, to go to the gateway from the client.
+		\item[$\bullet$] Decapsulating/Unpacking the packet, at the gateway for the client/server.
+		\item[$\bullet$] Communicating between client to the gateway and to the server and vice versa.
+		\item[$\bullet$] Understanding of sockets,datagram packets and threads
+		\item[$\bullet$] Stop and Wait between client and server\\\\\bf{\underline{Extra Milestones I achieved in this Assignment:}} 
+		\item[$\bullet$ ]Multiple Clients
+		\item[$\bullet$ ]Implementation of TCP - "Styled" Headers
+		\item[$\bullet$ ]Checksum Implementation
+		\item[$\bullet$ ]Unexpected Sequence Number Implementation
+		\item[$\bullet$ ]Public and Private RSA key generation
+		\item[$\bullet$ ]Two-Way RSA Encrypted Communication between Client and Server
+	\end{description}
+\section{Client, Gateway and Server Code Process Explained}
+As these processes are threaded, trying to explain my code in psuedocode would result in pseudocode extremely similar to the code I produced, I believe it could be quite confusing to do this. Due to this, I am detailing the explanation of my code in psuedocode in bulletpoint/paragraph form, in the order it is run. I believe this should be much easier to follow, in this case.
+\subsection{Client}
+		\begin{description}
+	\item[$\bullet$ ] Finds Unused Port
+	\item[$\bullet$ ] Designates Port Number to itself
+	\item[$\bullet$ ] Starts Terminal with Port Number
+	\item[$\bullet$ ] Generates a Keypair
+	\item[$\bullet$ ] Sends Public Key from Keypair to the Server (packeting explained further below)
+	\item[$\bullet$ ] Stop and Wait Protocol activated - Keeps sending until acknowledgement packet and acknowledgement number received from server.
+	\item[$\bullet$ ] In the acknowledgement packet from the server, the server's public key should be present.
+	\item[$\bullet$ ] Server's public key is then saved for future encryption of messages, if this occurs correctly receivedServerPublicKey is set to true.
+	\item[$\bullet$ ] Client terminal then waits for user to enter a message
+	\item[$\bullet$ ] Client takes the user's enter message encrypts it using the server's public key, this is considered the payload.
+	\item[$\bullet$ ] A header is then generatated, source port being the client's own port, destination port being the server's port. Sequence Number, Acknowledgement Number and Checksum are also generated and added.
+	\item[$\bullet$ ] The header and the payload are then combined to form the packet
+	\item[$\bullet$ ] Packet Encapsulation now occurs where another header is added to the packet, this time with the destination port being set to the gateway port. This is necessary to transport the packet correctly
+	\item[$\bullet$ ] Encapsulated Packet is then sent on to the gateway and the Stop and Wait Protocol is activated again
+	\item[$\bullet$ ] If no response is received within the given timeframe (3 secs in this case) the client keeps sending and leaves a message on the terminal mentioning the resending of the packet.
+	\item[$\bullet$ ] Once a message is received from the server via the gateway this message is then decrypted using the client's private key corresponding to the public key it sent to the server. This decrypted message is then printed to the terminal.
+	\item[$\bullet$ ] The client then gets more user input and repeats the process.\\\\\\
+	\textbf{\underline{Client - Edge Cases/Error Handling/Additional Notes:}} \\
+	\item[$\bullet$ ] No acknowledgement Packet Received - Stop and Wait contiunues sending packet if none are received within the timeframe
+	\item[$\bullet$ ] Dynamicly finds a port - The port isn't predefined in this program meaning the client will always find a port free so you can use as many clients as you can find within the range of free ports.
+	\item[$\bullet$ ] An Acknowledgement number from the server can request a packet be resent if the sequence number or the checksum value in the header is incorrect/unexpected, the client facilitates this resending, until the server sends a continue communicating acknowledgement request back.
+	\item[$\bullet$ ] Only works with a valid RSA Public Key, that the server should send.
+	\item[$\bullet$ ] Handles sequence numbers and checksum numbers being compared against what they should be.
+	\item[$\bullet$ ] Use of RSA encryption prevents people snooping on the messages being sent between the client and the server.\newpage
+\end{description}
+\subsection{Gateway}
+My implementation of my gateway was previously much more complex however the addition of proper use of headers, it reduced the amount of code required substantially whilst keeping the exact same functionality
+\begin{description}
+\item[$\bullet$ ] The gateway receives a packet from the client/server
+\item[$\bullet$ ] The gateway then decapsulates this packet to remove the now uncessary header that was used to transport it to the gateway.
+\item[$\bullet$ ] The gateway prints the port number it is being sent from and the destination it is going to, in the terminal.
+\item[$\bullet$ ] The content within the packet is printed to the terminal.
+\item[$\bullet$ ] \textit{This content is normally meaningless to read, as it either a public key being exchanged between the client/server or it is an RSA encrypted message between the two.}
+\item[$\bullet$ ] The packet is then forwarded onwards to the destination listed in the decapsulated  packet header.
+\item[$\bullet$ ] The gateway waits until another packet is sent for it to transport it correctly.
+\end{description}
+\subsection{Server}
+The implementation of the server is very similiar to the client however it is also catering for storing multiple ports with corresponding sequence numbers and public keys, in order to communicate in the correct order and to encrypt messages to be delievered to users properly.\\\\Due to this some of the most notable additions to the server are the arraylists of the ports,sequenceNumbers and the clients' public keys.
+\begin{description}
+	\item[$\bullet$ ] Server starts and generates a key pair.
+	\item[$\bullet$ ] When the server recieves a public key from a client, it saves the clients port, sequence number and public key in corresponding indexing arraylists for easy reference.
+	\item[$\bullet$ ] Server then sends the client back and acknowledgement with the server's public key.
+	\item[$\bullet$ ] Server waits for additional messages from a client.
+	\item[$\bullet$ ] Any content in a packet from a client who has already communicated with the server are now considered to be encrypted using the server's public key. 
+	\item[$\bullet$ ] The server checks is the checksum and the sequence number of this packet correct, if not it requests the correct packet to be resent and waits for the expected sequence number/correct checksum value.
+	\item[$\bullet$ ] The server decrypts the content of the packet it received, using it's own private key.
+	\item[$\bullet$ ] The server forms a response message (always "Ok") and RSA encrypts this message using the client's public key.
+	\item[$\bullet$ ] This payload is then added to a corresponding header with the client's port as the destination and the server's port as the source port. With the corresponding correct sequence number, acknowledgement number and checksum.
+	\item[$\bullet$ ] This packet is then encapsulated with the gateway port being set as the destination port in the encapsulating header.
+	\item[$\bullet$ ] The server then waits for additional packets to be received from clients and repeats the process detailed above in order to handle them correctly.
+\end{description}\newpage
+\section{Main Factors of this Assignment}
+\subsection{Header Implementation}
+Originally I was attaching my additional information that would have gone into a header on to the end of my string in my packet. I found this method just really messy and added a unnecessary level of complexitiy. Despite the previous method working, it wasn't as easily scablable and required much more code for the same functionality. I decided to rework my entire project to implement headers and I am very happy I did.\\\\I generated my own protocol for this assignment based on TCP - Transmission Control Protocol. I was considering using UDP however I wanted to try and include an acknowledgement number inside my header.
+\\\\
+For ease of implementation I included a Header class in this project, this merely consisted of a byte array inside a Header object however it allowed me to access a range of different functions to set/get any data from my header via the client, gateway or server.\\\\This data in my header included:
+		\begin{description}
+\item[$\bullet$ Bytes 0 - 1:] Source Port
+\item[$\bullet$ Bytes 2 - 3:] Destination Port
+\item[$\bullet$ Bytes 4 - 7:] Sequence Number
+\item[$\bullet$ Bytes 8 - 11:] Acknowledgement Number
+\item[$\bullet$ Bytes 12 - 13:] Checksum
+\end{description}
+\textbf{As we can see my implementation of an edited Transmission Control Protocol is very similiar, in comparision, to the actual TCP.}
+		\begin{figure}[h!]
+	\includegraphics[width=\linewidth]{tcpheader2.png}
+	\caption{Source: https://www.nmap.org/}
+	\label{fig:tcpheader}
+\end{figure}\newpage
+
+\subsection{Packet Encapsulation/Decapsulation}
+	I really felt the below illustration explained the context of packet encapsulation really well. The packet with a standard header is contained within the other packets that have additional headers detailing the locations in which the packet must travel.
+\begin{description}
+	\item
+\begin{figure}[h!]
+	\includegraphics[width=\linewidth]{encapsulation-decapsulation-boxesomnisecucom}
+	\caption{Example of Packet Encapsulation - Source: omnisecu.com}
+	\label{fig:packetEncapsulation}
+\end{figure}
+\end{description}
+In my assignment packet encapsulation is used to take the packet from the client with a destination port of the server and add an additional header, so the packet now has another header ontop of the previous one with a distination port of the gateway.\\\\
+In the gateway packet decapsulation is used, to remove the unnecessary header from the packet, after this is complete the packet is then sent on to the server from the gateway.\\\\
+The process of packet encapsulation is then repeated in the server where it is setup to deliever to the gateway first and then the inner packet contains the destination as the correct corresponding client's port.\\\\
+Packet decapsulation is then used once again in order to remove the additional header from the packet when a packet has been sent from the server to the gateway. This is then forwarded on to the correct corresponding client. This is all the cases in which packet encapsulation and decapsulation is used in this assignment.
+ \newpage
+\subsection{Stop and Wait Protocol}
+I felt this diagram explained the process of Stop and Wait Protocols very well. The data is sent, if an acknowledgement packet is not received within the given timeframe the packet is then resent.
+\begin{description}
+	\item
+	\begin{figure}[h!]
+		\includegraphics[width=\linewidth]{stopandwait}
+		\caption{Diagram of Stop and Wait Protocol - Source ecomputernotes.com}
+		\label{fig:packetEncapsulation}
+	\end{figure}
+\end{description}
+My assignment implemented this process in order to ensure the packets are being delievered correctly to the server, this was really vital as within ensuring a packet was delievered correctly, I wouldn't have been able to implement the RSA encryption as I would be risking has the public keys been delievered safely. This would have been especially worrying if this was done on a larger scale outside of just being in a local network less likely to experience that most congestion.\newpage
+\subsection{Checksum and Sequence Numbers}
+Checksum and Sequence numbers are two features that ensure the correct packet has been send and the correct information has been transmitting successfully in that packet.
+\begin{description}
+	\item
+	\begin{figure}[h!]
+		\includegraphics[width=\linewidth]{checksum}
+		\caption{Example of Checksum - Source wikipedia.org}
+		\label{fig:checksum}
+	\end{figure}
+\end{description}
+A checksum value is based on the input it receives. In this assignment the input is the packet content, the corresponding value of the checksum is then added to the header, this is used another method to ensure that all the bits have been transmitting correctly.\\
+Sequence numbers are very simiply incrementing numbers depending on the packet being sent to ensure the correct order of packets.
+\subsection{Scalable - Multiple Clients and Multiple Servers}
+By implementing a useful header system, having the server store the ports with corresponding public keys and sequence numbers that it communicated with, packet encapsulating and a gateway that is completely dynamic in the addresses it sends packets to, this means that this code could easily be run for multiple clients and multiple servers, the only changes that would be necessary would be to change the server port number. The rest of the code will function completely without any changes.\newpage
+\section{RSA Encryption}
+	\subsection{Background}
+	After getting experience snooping on packets during the first week of lectures and seeing how snooping can be done in class. I really wanted to try and prevent the data being transmitted in this network from being snooped on. This had to be done through RSA Encryption.
+	\subsection{Implementation}
+	\begin{description}
+		\item
+		\begin{figure}[h!]
+			\includegraphics[width=\linewidth]{rsapublickeyencryption}
+			\caption{Example of Public - Private Key RSA Encryption - Source: c-sharpcorner.com}
+			\label{fig:rsaEncryption}
+		\end{figure}
+	\end{description}
+In order for RSA encryption to be implemented in this assignment, both the server and the client had to generate a key pair. The public key from this generated keypair had to be exchanged on both the client's and the server's end.\\\\
+	\begin{description}
+	\item
+	\begin{figure}[h!]
+		\begin{center}	
+		\includegraphics{rsa}
+		\end{center}
+		\caption{Example of Public - Private Key on Ciphertext to Plaintext- Source: latesthackingnews.com}
+		\label{fig:rsaEncryption}
+	\end{figure}
+\end{description}
+During RSA encryption, the data is encrypted using the other person's public key. This data can only be unlocked using the other person's private key. As shown in the above diagram.\\\\
+After the public keys have been exchanged any message for the server is encrypted using the server's public key and any message for the client is encrypted using the client's public key. This ensures the data is safe and secure and cannot be easily snooped on when it is being transmitted across the network, through the gateway.\newpage
+	\subsection{Result of using RSA Encryption}
+		\begin{description}
+		\item
+		\begin{figure}[h!]
+			\includegraphics[width=\linewidth]{clienttogatewaytoserver}
+			\caption{Encrypted Output of what is being sent from the Client to the Gateway then to the Server}
+			\label{fig:rsaEncryption}
+		\end{figure}
+	\end{description}
+I am really delighted with my implementation of RSA Encryption, it ensures that if you try to snoop on the content of the packet in with tcpdump or in a program such as wireshark you are unable to see the content of the message as you cannot decrypt the messages without the private key.\\\\This really added a really high level of sophistication to my assignment as it ensured the client/s and server/s had total privacy from people snooping on the content of the traffic between the two. Only the client and the server can easily access their corresponding data.\newpage
+\section{Assignment Reflection}
+	\subsection{Advantages of Implementation}
+	\begin{description}
+		\item[$\bullet$ ] Multi-clients can be added easily, simply by running the client code, a new free port will be found an assigned.
+		\item[$\bullet$ ] Code is scalable for multiple clients and servers to operate using the same gateway.
+		\item[$\bullet$ ] RSA Encryption ensures privacy preventing anyone besides the client and server from snooping on the content of the packets they are exchanging.
+		\item[$\bullet$ ] Stop and Wait Protocol works as attending, ensuring packets get delievered correctly eventually.
+	\end{description}
+	\subsection{Disadvantages of Implementation}
+		\begin{description}
+		\item[$\bullet$ ] Not an exact standard header was used. I didn't follow albeit exactly to the TCP protocol, I did a shorter version only using the information applicable for this assignment, I could have implemented the full TCP protocol however I felt this was slightly unnecessary and would have just been a lot of empty bytes near the start of each packet.
+		\item[$\bullet$ ] RSA Encryption is an incredible addition for security in this network, I guess, to a degree, it could be slighty unnecessary if this network is just being used to transmit non-sensitive data.
+		\item[$\bullet$ ] This implementation has been designed for using within the local network, I could have extended it further in my header to allow for different IPs to be added, this would have been an easy additional feature to add although would make my code adhere to not being as similiar to TCP.
+		\item[$\bullet$ ] Although I feel I covered a lot, there is always the potential for more bug-fixes and maintenance.
+	\end{description}
+	\subsection{Time Spent}
+	In total I spent around \textbf{16-22 working hours} on this assignment's code and an additional \textbf{4-5 working hours} on this report.\\\\ I also spent a significant amount of time researching the best approach I could have to certain topics such as the RSA encryption and re-reading the notes for additional assistance.
+	\subsection{What I have learnt...}
+	I really enjoyed working on this assignment as I got a much more practical sense of the topics discussed in the lecture, I also got to do some additional learning regarding RSA encryption which I found extremely useful to learn.\\\\\textbf{Topics I learnt/got to implement throughout the course of this assignment are:}
+			\begin{description}
+		\item[$\bullet$ ] Allocation and use of sockets.
+		\item[$\bullet$ ] Implementation of ports
+		\item[$\bullet$ ] Packet Encapsulation
+		\item[$\bullet$ ] Threading
+		\item[$\bullet$ ] Acknowledgements
+		\item[$\bullet$ ] ARQs - Stop and Wait
+		\item[$\bullet$ ] Sequence Numbers
+		\item[$\bullet$ ] Checksum
+		\item[$\bullet$ ] Headers
+		\item[$\bullet$ ] TCP
+		\item[$\bullet$ ] UDP
+		\item[$\bullet$ ] Key Generation - Public and Private Keys
+		\item[$\bullet$ ] RSA Encryption
+	\end{description}
+\end{document}
